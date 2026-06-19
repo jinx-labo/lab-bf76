@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>bf76 – Minuteur à œufs</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --yolk: #f5a623;
+    --shell: #fdf6ec;
+    --brown: #7a4f2d;
+    --soft: #e8f5e9;
+    --med: #fff9c4;
+    --hard: #fce4ec;
+    --done-bg: #ff3d00;
+    --radius: 20px;
+  }
+
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+    background: var(--shell);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 16px;
+    color: var(--brown);
+  }
+
+  h1 {
+    font-size: 1.6rem;
+    font-weight: 800;
+    letter-spacing: 2px;
+    margin-bottom: 6px;
+    color: var(--brown);
+  }
+
+  .subtitle {
+    font-size: 0.9rem;
+    color: #a0785a;
+    margin-bottom: 36px;
+  }
+
+  .egg-icon {
+    font-size: 3rem;
+    margin-bottom: 4px;
+  }
+
+  /* Boutons de sélection */
+  .choices {
+    display: flex;
+    gap: 14px;
+    margin-bottom: 40px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .choice-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100px;
+    height: 120px;
+    border: 3px solid transparent;
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 1rem;
+    font-weight: 700;
+    transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+    background: white;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.08);
+    position: relative;
+    outline: none;
+  }
+
+  .choice-btn:active { transform: scale(0.95); }
+
+  .choice-btn.soft  { background: var(--soft); }
+  .choice-btn.med   { background: var(--med);  }
+  .choice-btn.hard  { background: var(--hard); }
+
+  .choice-btn.selected {
+    border-color: var(--brown);
+    box-shadow: 0 6px 20px rgba(122,79,45,0.25);
+    transform: scale(1.06);
+  }
+
+  .choice-btn .minutes {
+    font-size: 2rem;
+    font-weight: 900;
+    line-height: 1;
+  }
+  .choice-btn .label {
+    font-size: 0.7rem;
+    margin-top: 4px;
+    opacity: 0.75;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .choice-btn .emoji {
+    font-size: 1.5rem;
+    margin-bottom: 4px;
+  }
+
+  /* Zone minuteur */
+  .timer-area {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    width: 100%;
+    max-width: 320px;
+  }
+
+  /* Cercle SVG */
+  .ring-wrap {
+    position: relative;
+    width: 200px;
+    height: 200px;
+  }
+
+  .ring-wrap svg {
+    transform: rotate(-90deg);
+    width: 200px;
+    height: 200px;
+  }
+
+  .ring-bg {
+    fill: none;
+    stroke: #ecdec8;
+    stroke-width: 12;
+  }
+
+  .ring-progress {
+    fill: none;
+    stroke: var(--yolk);
+    stroke-width: 12;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.5s linear, stroke 0.4s;
+  }
+
+  .ring-center {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+  }
+
+  .time-display {
+    font-size: 3rem;
+    font-weight: 900;
+    letter-spacing: 2px;
+    line-height: 1;
+    color: var(--brown);
+    transition: color 0.3s;
+  }
+
+  .time-status {
+    font-size: 0.75rem;
+    color: #a0785a;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 4px;
+  }
+
+  /* Boutons contrôle */
+  .controls {
+    display: flex;
+    gap: 12px;
+  }
+
+  .ctrl-btn {
+    padding: 14px 28px;
+    border: none;
+    border-radius: 50px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    outline: none;
+  }
+
+  .ctrl-btn:active { transform: scale(0.95); }
+
+  .btn-start {
+    background: var(--yolk);
+    color: white;
+  }
+  .btn-reset {
+    background: #ecdec8;
+    color: var(--brown);
+  }
+
+  /* Alarme */
+  .alarm-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: var(--done-bg);
+    z-index: 999;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    animation: flashAlarm 0.5s infinite alternate;
+  }
+
+  .alarm-overlay.active {
+    display: flex;
+  }
+
+  @keyframes flashAlarm {
+    from { background: #ff3d00; }
+    to   { background: #ff8f00; }
+  }
+
+  .alarm-emoji {
+    font-size: 6rem;
+    animation: bounce 0.5s infinite alternate;
+  }
+
+  @keyframes bounce {
+    from { transform: translateY(0); }
+    to   { transform: translateY(-20px); }
+  }
+
+  .alarm-text {
+    color: white;
+    font-size: 2.2rem;
+    font-weight: 900;
+    margin-top: 20px;
+    text-align: center;
+  }
+
+  .alarm-sub {
+    color: rgba(255,255,255,0.85);
+    font-size: 1rem;
+    margin-top: 8px;
+  }
+
+  .alarm-dismiss {
+    margin-top: 36px;
+    padding: 16px 40px;
+    background: white;
+    color: var(--done-bg);
+    border: none;
+    border-radius: 50px;
+    font-size: 1.1rem;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+  }
+
+  /* Pulse quand presque fini */
+  .pulse .ring-progress { animation: strokePulse 0.5s infinite alternate; }
+  @keyframes strokePulse {
+    from { stroke: var(--yolk); }
+    to   { stroke: #ff3d00; }
+  }
+
+  /* Responsive */
+  @media (max-width: 360px) {
+    .choice-btn { width: 88px; height: 108px; }
+    .choice-btn .minutes { font-size: 1.6rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="egg-icon">🥚</div>
+<h1>bf76</h1>
+<p class="subtitle">Minuteur à œufs</p>
+
+<!-- Sélection du temps -->
+<div class="choices">
+  <button class="choice-btn soft" data-min="3" onclick="selectTime(3, this)">
+    <span class="emoji">🥄</span>
+    <span class="minutes">3</span>
+    <span class="label">min — mollet</span>
+  </button>
+  <button class="choice-btn med" data-min="6" onclick="selectTime(6, this)">
+    <span class="emoji">🍳</span>
+    <span class="minutes">6</span>
+    <span class="label">min — medium</span>
+  </button>
+  <button class="choice-btn hard" data-min="9" onclick="selectTime(9, this)">
+    <span class="emoji">💪</span>
+    <span class="minutes">9</span>
+    <span class="label">min — dur</span>
+  </button>
+</div>
+
+<!-- Zone minuteur -->
+<div class="timer-area">
+  <div class="ring-wrap" id="ringWrap">
+    <svg viewBox="0 0 200 200">
+      <circle class="ring-bg" cx="100" cy="100" r="88"/>
+      <circle class="ring-progress" id="ringProgress"
+              cx="100" cy="100" r="88"
+              stroke-dasharray="552.9"
+              stroke-dashoffset="552.9"/>
+    </svg>
+    <div class="ring-center">
+      <div class="time-display" id="timeDisplay">--:--</div>
+      <div class="time-status" id="timeStatus">Choisir</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="ctrl-btn btn-start" id="startBtn" onclick="toggleTimer()">▶ Démarrer</button>
+    <button class="ctrl-btn btn-reset" onclick="resetTimer()">↺ Reset</button>
+  </div>
+</div>
+
+<!-- Overlay alarme -->
+<div class="alarm-overlay" id="alarmOverlay">
+  <div class="alarm-emoji">🥚</div>
+  <div class="alarm-text">C'est prêt !</div>
+  <div class="alarm-sub" id="alarmSub">Votre œuf est prêt</div>
+  <button class="alarm-dismiss" onclick="dismissAlarm()">OK, merci !</button>
+</div>
+
+<script>
+  const CIRCUMFERENCE = 2 * Math.PI * 88; // ~552.9
+
+  let totalSeconds = 0;
+  let remainingSeconds = 0;
+  let running = false;
+  let intervalId = null;
+  let selectedMinutes = null;
+
+  const ring = document.getElementById('ringProgress');
+  const display = document.getElementById('timeDisplay');
+  const status = document.getElementById('timeStatus');
+  const startBtn = document.getElementById('startBtn');
+  const ringWrap = document.getElementById('ringWrap');
+  const alarmOverlay = document.getElementById('alarmOverlay');
+  const alarmSub = document.getElementById('alarmSub');
+
+  ring.style.strokeDasharray = CIRCUMFERENCE;
+  ring.style.strokeDashoffset = CIRCUMFERENCE;
+
+  function selectTime(min, btn) {
+    if (running) return;
+    document.querySelectorAll('.choice-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    selectedMinutes = min;
+    totalSeconds = min * 60;
+    remainingSeconds = totalSeconds;
+    updateDisplay();
+    ring.style.strokeDashoffset = CIRCUMFERENCE; // full empty
+    ringWrap.classList.remove('pulse');
+    status.textContent = 'Prêt';
+    startBtn.textContent = '▶ Démarrer';
+  }
+
+  function updateDisplay() {
+    const m = Math.floor(remainingSeconds / 60);
+    const s = remainingSeconds % 60;
+    display.textContent = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  }
+
+  function updateRing() {
+    if (totalSeconds === 0) return;
+    const fraction = remainingSeconds / totalSeconds;
+    const offset = CIRCUMFERENCE * (1 - fraction);
+    ring.style.strokeDashoffset = offset;
+  }
+
+  function toggleTimer() {
+    if (selectedMinutes === null) {
+      alert('Choisissez une durée d\'abord !');
+      return;
+    }
+    if (running) {
+      // Pause
+      clearInterval(intervalId);
+      running = false;
+      startBtn.textContent = '▶ Reprendre';
+      status.textContent = 'Pause';
+    } else {
+      // Start / Resume
+      running = true;
+      startBtn.textContent = '⏸ Pause';
+      status.textContent = 'En cours…';
+      intervalId = setInterval(tick, 1000);
+    }
+  }
+
+  function tick() {
+    if (remainingSeconds <= 0) {
+      clearInterval(intervalId);
+      running = false;
+      triggerAlarm();
+      return;
+    }
+    remainingSeconds--;
+    updateDisplay();
+    updateRing();
+
+    // Pulse dans les 10 dernières secondes
+    if (remainingSeconds <= 10) {
+      ringWrap.classList.add('pulse');
+    }
+  }
+
+  function resetTimer() {
+    clearInterval(intervalId);
+    running = false;
+    ringWrap.classList.remove('pulse');
+    if (selectedMinutes !== null) {
+      remainingSeconds = totalSeconds;
+      updateDisplay();
+      ring.style.strokeDashoffset = CIRCUMFERENCE;
+      status.textContent = 'Prêt';
+    } else {
+      remainingSeconds = 0;
+      display.textContent = '--:--';
+      status.textContent = 'Choisir';
+      ring.style.strokeDashoffset = CIRCUMFERENCE;
+    }
+    startBtn.textContent = '▶ Démarrer';
+  }
+
+  function triggerAlarm() {
+    ringWrap.classList.remove('pulse');
+    status.textContent = 'Terminé !';
+    display.textContent = '00:00';
+    ring.style.strokeDashoffset = 0;
+    startBtn.textContent = '▶ Démarrer';
+
+    // Label selon durée
+    const labels = { 3: 'mollet', 6: 'medium', 9: 'dur' };
+    const lbl = labels[selectedMinutes] || '';
+    alarmSub.textContent = `Votre œuf ${lbl} est prêt !`;
+
+    alarmOverlay.classList.add('active');
+
+    // Vibration si dispo
+    if (navigator.vibrate) {
+      navigator.vibrate([400, 200, 400, 200, 800]);
+    }
+
+    // Son d'alarme via AudioContext (beeps)
+    playBeeps();
+  }
+
+  function dismissAlarm() {
+    alarmOverlay.classList.remove('active');
+  }
+
+  function playBeeps() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      let t = ctx.currentTime;
+      for (let i = 0; i < 5; i++) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, t);
+        gain.gain.setValueAtTime(0.6, t);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
+        osc.start(t);
+        osc.stop(t + 0.3);
+        t += 0.45;
+      }
+    } catch(e) {
+      // Pas d'audio, l'alarme visuelle suffit
+    }
+  }
+</script>
+</body>
+</html>
